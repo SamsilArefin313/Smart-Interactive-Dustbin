@@ -1,0 +1,147 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+#define BLYNK_PRINT Serial
+char auth[] = "lqFA2801S9mU18spcjy6iPpaGi27D3zD";
+char ssid[] = "Project";
+char pass[] = "87654321";
+BlynkTimer timer;
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+#define DHTPIN 18     // Digital pin connected to the DHT sensor
+#define DHTTYPE    DHT22     // DHT 22 (AM2302)
+DHT dht(DHTPIN, DHTTYPE);
+
+#define trigPin 4
+#define echoPin 2
+long duration;
+int distance;
+
+void setup() {
+Serial.begin(115200);
+Blynk.begin(auth, ssid, pass);
+pinMode(trigPin,OUTPUT);
+pinMode(echoPin,INPUT);
+dht.begin();
+
+if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+   Serial.println(F("SSD1306 allocation failed"));
+   for(;;);
+}
+delay(2000);
+display.clearDisplay();
+display.setTextColor(WHITE);
+}
+
+void loop() {
+  delay(500);
+  //read temperature and humidity
+  float t = dht.readTemperature();
+  float h = dht.readHumidity();
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+  }
+
+  Blynk.virtualWrite(V1, t);       //DB2_temp
+  Blynk.virtualWrite(V2, h);       //DB2_Humi
+  Blynk.virtualWrite(V3, distance);//DB2_dust
+
+  //clear display
+  display.clearDisplay();
+
+  // display Bin Name
+  display.setTextSize(2);
+  display.setCursor(0,0);
+  display.print("SMARTBIN-2");
+  
+  // display temperature
+  display.setTextSize(1);
+  display.setCursor(0,20);
+  display.print("Temp");
+  display.setTextSize(1);
+  display.setCursor(0,30);
+  display.print(t);
+  display.print(" ");
+  display.setTextSize(1);
+  display.cp437(true);
+  display.write(167);
+  display.setTextSize(1);
+  display.print("C");
+  
+  // display humidity
+  display.setTextSize(1);
+  display.setCursor(70, 20);
+  display.print("Humid");
+  display.setTextSize(1);
+  display.setCursor(70, 30);
+  display.print(h);
+  display.print(" %"); 
+
+   // display Dust level
+  display.setTextSize(1);
+  display.setCursor(0,45);
+  display.print("Dust");
+  display.setTextSize(1);
+  display.setCursor(0,55);
+  display.print("Level");
+
+  display.setTextSize(2);
+  display.setCursor(60, 47);
+  display.print(distance);
+  display.print(" %"); 
+    
+  display.display(); 
+
+  Blynk.run();
+  timer.run();
+  /*-------------------------------------------------*/
+  digitalWrite(trigPin,LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin,HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin,LOW);
+  duration=pulseIn(echoPin,HIGH);
+  distance=(duration*0.034/2);
+  Serial.print("Distance : ");
+  Serial.print(distance);
+  Serial.println(" cm ");
+  delay(1000);
+  /*-------------------------------------------------*/
+  
+  if ((distance >= 22) && (distance <= 26))
+    {
+    Serial.println("level 1"); 
+    distance=25;
+    }
+  else if ((distance >= 15) && (distance <= 21))
+    {
+    Serial.println("level 2");  
+    distance=50;
+    }
+  else if ((distance >= 7) && (distance <= 14))
+    {
+    Serial.println("level 3");
+    distance=75;
+    }
+  else if ((distance >= 0) && (distance <= 6))
+    {
+    Serial.println("level 4");
+    distance=100;
+    }
+  else
+    {
+     Serial.println("level 0");
+     distance=0;
+    }
+}
